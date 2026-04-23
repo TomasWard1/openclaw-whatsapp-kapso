@@ -174,10 +174,24 @@ export function normalizeItem(
   }
 
   const mediaUrl = typeof kapso.media_url === "string" ? kapso.media_url : undefined;
-  const mediaData = kapso.media_data as { content_type?: unknown } | undefined;
+  const mediaData = kapso.media_data as { content_type?: unknown; id?: unknown } | undefined;
   const mediaMimeType = mediaData && typeof mediaData.content_type === "string"
     ? mediaData.content_type
     : undefined;
+  // The media id lives in a few places depending on payload version:
+  //   v2 Kapso: message.kapso.media_data.id
+  //   Meta-native shape: message[<type>].id (e.g. message.image.id)
+  let mediaId: string | undefined;
+  if (mediaData && typeof mediaData.id === "string") {
+    mediaId = mediaData.id;
+  }
+  if (!mediaId) {
+    const typed = m[String(type)];
+    if (typed && typeof typed === "object") {
+      const id = (typed as { id?: unknown }).id;
+      if (typeof id === "string") mediaId = id;
+    }
+  }
 
   // v2 path: conversation.kapso.contact_name. (The Limbo adapter had this wrong.)
   let fromName: string | undefined;
@@ -220,6 +234,7 @@ export function normalizeItem(
   if (fromName !== undefined) out.fromName = fromName;
   if (mediaUrl !== undefined) out.mediaUrl = mediaUrl;
   if (mediaMimeType !== undefined) out.mediaMimeType = mediaMimeType;
+  if (mediaId !== undefined) out.mediaId = mediaId;
   if (replyToMessageId !== undefined) out.replyToMessageId = replyToMessageId;
   return out;
 }

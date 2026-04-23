@@ -38,8 +38,18 @@ export interface NormalizedInboundMessage {
   timestamp: string;
   type: InboundMessageType;
   text?: string;
+  /**
+   * Fresh-at-delivery media URL from Kapso. EXPIRES IN 4-5 MINUTES.
+   * Async consumers should ignore this and use `mediaId` + `fetchKapsoMedia`
+   * / `downloadMediaBytes` to re-resolve a live URL.
+   */
   mediaUrl?: string;
   mediaMimeType?: string;
+  /**
+   * Stable Kapso/Meta media id. Use this (not `mediaUrl`) for any work that
+   * might run after the inbound HTTP request returns.
+   */
+  mediaId?: string;
   replyToMessageId?: string;
   raw: unknown;
 }

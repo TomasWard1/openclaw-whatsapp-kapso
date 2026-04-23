@@ -2,8 +2,49 @@
   "id": "whatsapp-kapso",
   "channels": ["whatsapp-kapso"],
   "configSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",
     "additionalProperties": false,
-    "properties": {}
+    "properties": {
+      "apiKey": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Kapso project API key. Create at https://app.kapso.ai/settings/api-keys."
+      },
+      "phoneNumberId": {
+        "type": "string",
+        "pattern": "^[0-9]+$",
+        "description": "Meta phone_number_id returned by Kapso for the WABA-registered number."
+      },
+      "webhookSecret": {
+        "type": "string",
+        "minLength": 16,
+        "description": "Shared HMAC secret configured in Kapso's webhook settings. Min 16 chars."
+      },
+      "apiBaseUrl": {
+        "type": "string",
+        "format": "uri",
+        "description": "Override the Kapso API base URL. Defaults to https://api.kapso.ai."
+      },
+      "enabled": { "type": "boolean" },
+      "name": { "type": "string" },
+      "accounts": {
+        "type": "object",
+        "description": "Multi-account map keyed by accountId.",
+        "additionalProperties": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["apiKey", "phoneNumberId", "webhookSecret"],
+          "properties": {
+            "apiKey": { "type": "string", "minLength": 1 },
+            "phoneNumberId": { "type": "string", "pattern": "^[0-9]+$" },
+            "webhookSecret": { "type": "string", "minLength": 16 },
+            "apiBaseUrl": { "type": "string", "format": "uri" },
+            "enabled": { "type": "boolean" },
+            "name": { "type": "string" }
+          }
+        }
+      }
+    }
   }
 }
