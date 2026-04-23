@@ -1,6 +1,6 @@
 {
   "name": "openclaw-whatsapp-kapso",
-  "version": "2026.4.24",
+  "version": "2026.4.25",
   "description": "Native OpenClaw channel plugin for WhatsApp via Kapso (WhatsApp Business Cloud API)",
   "author": {
     "name": "Tomas Ward",
