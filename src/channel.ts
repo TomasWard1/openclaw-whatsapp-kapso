@@ -9,6 +9,7 @@ import {
 } from "./accounts.js";
 import { createKapsoClient } from "./send.js";
 import { IdempotencyCache, parseKapsoWebhook } from "./inbound.js";
+import { dispatchInboundMessage } from "./inbound-pipeline.js";
 import type { ResolvedKapsoAccount, SendResult } from "./types.js";
 
 /**
@@ -89,8 +90,27 @@ function normalizeAccountIdForPath(accountId: string): string {
   return accountId.toLowerCase().replace(/[^a-z0-9_-]/g, "_");
 }
 
-function webhookPathForAccount(accountId: string): string {
+export function webhookPathForAccount(accountId: string): string {
   return `/webhooks/whatsapp-kapso/${normalizeAccountIdForPath(accountId)}`;
+}
+
+/**
+ * OpenClaw's delivery machinery (cron, channel-reply dispatch, etc.) calls
+ * `outbound.sendText` with `{cfg, accountId}` — the account isn't pre-resolved
+ * by the caller. We resolve it here from the full config. The plugin's own
+ * call sites (legacy `{account}` form) still work.
+ */
+function resolveOutboundAccount(params: {
+  cfg?: unknown;
+  accountId?: string;
+  account?: ResolvedKapsoAccount;
+}): ResolvedKapsoAccount | undefined {
+  if (params.account) return params.account;
+  if (!params.cfg) return undefined;
+  return kapsoPlugin.config.resolveAccount(
+    params.cfg,
+    params.accountId ?? DEFAULT_ACCOUNT_ID,
+  );
 }
 
 /**
@@ -152,11 +172,31 @@ export const kapsoPlugin = {
       const parsed = KapsoConfigSchema.safeParse(section);
       return parsed.success ? listKapsoAccountIds(parsed.data) : [];
     },
-    resolveAccount: (params: { cfg: unknown; accountId?: string }): ResolvedKapsoAccount | undefined => {
-      const section = extractChannelSection(params.cfg);
+    // OpenClaw calls this positionally as `resolveAccount(cfg, accountId)`;
+    // we also accept the object form `resolveAccount({cfg, accountId})` for
+    // callers that prefer that shape (and tests written against it).
+    resolveAccount: (
+      cfgOrParams: unknown,
+      maybeAccountId?: string,
+    ): ResolvedKapsoAccount | undefined => {
+      let rawCfg: unknown;
+      let accountId: string | undefined;
+      if (
+        cfgOrParams &&
+        typeof cfgOrParams === "object" &&
+        "cfg" in (cfgOrParams as Record<string, unknown>)
+      ) {
+        const obj = cfgOrParams as { cfg: unknown; accountId?: string };
+        rawCfg = obj.cfg;
+        accountId = obj.accountId;
+      } else {
+        rawCfg = cfgOrParams;
+        accountId = maybeAccountId;
+      }
+      const section = extractChannelSection(rawCfg);
       const parsed = KapsoConfigSchema.safeParse(section);
       if (!parsed.success) return undefined;
-      return resolveKapsoAccount(parsed.data, params.accountId ?? DEFAULT_ACCOUNT_ID);
+      return resolveKapsoAccount(parsed.data, accountId ?? DEFAULT_ACCOUNT_ID);
     },
     defaultAccountId: (cfg: unknown) => {
       const section = extractChannelSection(cfg);
@@ -178,12 +218,16 @@ export const kapsoPlugin = {
     deliveryMode: "direct" as const,
     textChunkLimit: 4096,
     sendText: async (params: {
-      account: ResolvedKapsoAccount;
+      cfg?: unknown;
+      accountId?: string;
+      account?: ResolvedKapsoAccount;
       to: string;
       text: string;
       replyToId?: string | null;
     }): Promise<SendResult> => {
-      const client = createKapsoClient(params.account.config);
+      const account = resolveOutboundAccount(params);
+      if (!account) throw new Error("whatsapp-kapso sendText: no configured account");
+      const client = createKapsoClient(account.config);
       return client.sendText({
         to: params.to,
         text: params.text,
@@ -191,7 +235,9 @@ export const kapsoPlugin = {
       });
     },
     sendMedia: async (params: {
-      account: ResolvedKapsoAccount;
+      cfg?: unknown;
+      accountId?: string;
+      account?: ResolvedKapsoAccount;
       to: string;
       kind: "image" | "audio" | "video" | "document" | "sticker";
       mediaUrl: string;
@@ -199,7 +245,9 @@ export const kapsoPlugin = {
       filename?: string;
       replyToId?: string | null;
     }): Promise<SendResult> => {
-      const client = createKapsoClient(params.account.config);
+      const account = resolveOutboundAccount(params);
+      if (!account) throw new Error("whatsapp-kapso sendMedia: no configured account");
+      const client = createKapsoClient(account.config);
       return client.sendMedia({
         to: params.to,
         kind: params.kind,
@@ -238,6 +286,7 @@ export const kapsoPlugin = {
      * handler directly keep working.
      */
     startAccount: async (ctx: {
+      cfg?: unknown;
       account: ResolvedKapsoAccount;
       abortSignal?: AbortSignal;
       log?: { info?: (m: string) => void; warn?: (m: string) => void; error?: (m: string) => void };
@@ -246,6 +295,13 @@ export const kapsoPlugin = {
       const idempotency = new IdempotencyCache(1000);
       const accountId = ctx.account.accountId;
       const path = webhookPathForAccount(accountId);
+
+      // OpenClaw passes its channel runtime in ctx.channelRuntime; the native
+      // inbound pipeline needs it to resolve routes, record sessions, and
+      // dispatch to the agent.
+      const channelRuntime = (ctx as Record<string, unknown>).channelRuntime as
+        | Parameters<typeof dispatchInboundMessage>[0]["channelRuntime"]
+        | undefined;
 
       const webhookHandler = async (
         rawBody: Buffer | string,
@@ -340,18 +396,34 @@ export const kapsoPlugin = {
             return true;
           }
 
-          // ACK fast, then dispatch in the background. Kapso enforces short
-          // webhook timeouts; agent latency can be minutes under tool chains.
+          // ACK fast, then bridge to the agent in the background. Kapso
+          // enforces short webhook timeouts; agent latency can be minutes
+          // under tool chains.
           res.statusCode = 200;
           res.setHeader("Content-Type", "application/json");
           res.end(JSON.stringify({ ok: true, delivered: parsed.messages.length }));
 
-          if (ctx.dispatch) {
-            for (const m of parsed.messages) {
-              Promise.resolve()
-                .then(() => ctx.dispatch!(m))
-                .catch((err) => ctx.log?.error?.(`[${accountId}] dispatch failed: ${String(err)}`));
-            }
+          if (!channelRuntime) {
+            ctx.log?.error?.(
+              `[${accountId}] no channelRuntime on ctx — host is too old; dropping inbound`,
+            );
+            return true;
+          }
+
+          for (const m of parsed.messages) {
+            Promise.resolve()
+              .then(() =>
+                dispatchInboundMessage({
+                  cfg: ctx.cfg,
+                  account: ctx.account,
+                  channelRuntime,
+                  log: ctx.log,
+                  message: m,
+                }),
+              )
+              .catch((err) =>
+                ctx.log?.error?.(`[${accountId}] dispatchInboundMessage failed: ${String(err)}`),
+              );
           }
 
           return true;
@@ -376,8 +448,14 @@ export const kapsoPlugin = {
         );
       }
 
-      // Resolves when the host aborts — triggers HTTP route cleanup.
-      const done = new Promise<void>((resolve) => {
+      // Keep the task alive until the host aborts us. OpenClaw treats the
+      // Promise returned from startAccount as the channel task — if it
+      // resolves, the channel is considered exited and auto-restart kicks
+      // in, leaving us in a restart loop because our mount is already live.
+      // `webhookHandler` is kept internal; the HTTP route is self-mounted
+      // via the SDK, so no host-facing handler is needed.
+      void webhookHandler;
+      return await new Promise<void>((resolve) => {
         const finish = () => {
           if (unregisterHttpRoute) {
             try { unregisterHttpRoute(); } catch (err) {
@@ -387,12 +465,10 @@ export const kapsoPlugin = {
           }
           resolve();
         };
-        if (!ctx.abortSignal) return;
+        if (!ctx.abortSignal) return; // no abort signal = stay alive forever
         if (ctx.abortSignal.aborted) return finish();
         ctx.abortSignal.addEventListener("abort", finish, { once: true });
       });
-
-      return { webhookHandler, done, webhookPath: path };
     },
     logoutAccount: async () => {
       // Stateless — nothing to revoke on our side. Kapso API keys are managed
