@@ -1,36 +1,36 @@
 /**
- * CommonJS register-entry consumed by the OpenClaw host.
+ * ESM register-entry consumed by the OpenClaw host.
  *
- * Follows the same pattern as openclaw-vk: the host calls `register(api)` with
- * a `PluginRuntime`, we stash it in a module-level store and register our
- * channel via `api.registerChannel`.
+ * The host calls `register(api)` with a `PluginRuntime`; we stash it in a
+ * module-level store and register our channel via `api.registerChannel`.
+ *
+ * Shipped as compiled ESM .js because Node refuses to strip TypeScript types
+ * for files inside node_modules (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING).
  */
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { kapsoPlugin } = require("./src/channel.js");
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { setKapsoRuntime } = require("./src/runtime.js");
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const manifest = require("./openclaw.plugin.json") as {
-  configSchema: Record<string, unknown>;
-};
+import { kapsoPlugin } from "./src/channel.js";
+import { setKapsoRuntime } from "./src/runtime.js";
+import manifest from "./openclaw.plugin.json" with { type: "json" };
 
 interface PluginApi {
   runtime: Record<string, unknown>;
   registerChannel: (args: { plugin: unknown }) => void;
 }
 
-function register(api: PluginApi): void {
+export function register(api: PluginApi): void {
   setKapsoRuntime(api.runtime);
   api.registerChannel({ plugin: kapsoPlugin });
 }
 
-module.exports = {
-  id: "whatsapp-kapso",
-  name: "WhatsApp (Kapso)",
-  description: "Native OpenClaw channel plugin for WhatsApp via Kapso",
-  // Keep the register-entry in sync with the manifest so registry UIs that
-  // read either source see the real schema, not an empty no-op.
-  configSchema: manifest.configSchema,
+export const id = "whatsapp-kapso";
+export const name = "WhatsApp (Kapso)";
+export const description = "Native OpenClaw channel plugin for WhatsApp via Kapso";
+export const configSchema = (manifest as { configSchema: Record<string, unknown> }).configSchema;
+
+export default {
+  id,
+  name,
+  description,
+  configSchema,
   register,
 };
