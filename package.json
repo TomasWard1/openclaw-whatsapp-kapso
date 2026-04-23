@@ -46,8 +46,8 @@
     "src/types.ts"
   ],
   "scripts": {
-    "test": "node --import tsx --test test/**/*.test.ts",
-    "test:watch": "node --import tsx --test --watch test/**/*.test.ts",
+    "test": "node --import tsx --test --test-reporter=spec \"test/**/*.test.ts\"",
+    "test:watch": "node --import tsx --test --watch \"test/**/*.test.ts\"",
     "check:pack": "npm pack --dry-run"
   },
   "dependencies": {
