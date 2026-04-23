@@ -54,3 +54,28 @@ test("webhookHandler returns 401 on missing signature", async () => {
   const res = await gw.webhookHandler("{}", {});
   assert.equal(res.status, 401);
 });
+
+test("startAccount exposes the per-account webhook path", async () => {
+  const acct = kapsoPlugin.config.resolveAccount({
+    cfg: { apiKey: "k", phoneNumberId: "123", webhookSecret: SECRET },
+  })!;
+  const gw = await kapsoPlugin.gateway.startAccount({ account: acct });
+  assert.equal(gw.webhookPath, "/webhooks/whatsapp-kapso/default");
+});
+
+test("webhook path sanitizes unsafe characters in account id", async () => {
+  const acct = kapsoPlugin.config.resolveAccount({
+    cfg: {
+      accounts: {
+        "MyAcct/../hack?x=1": {
+          apiKey: "k",
+          phoneNumberId: "123",
+          webhookSecret: SECRET,
+        },
+      },
+    },
+    accountId: "MyAcct/../hack?x=1",
+  })!;
+  const gw = await kapsoPlugin.gateway.startAccount({ account: acct });
+  assert.equal(gw.webhookPath, "/webhooks/whatsapp-kapso/myacct____hack_x_1");
+});
