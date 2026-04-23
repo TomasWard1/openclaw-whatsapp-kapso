@@ -4,6 +4,34 @@ import type { KapsoAccountConfig, MediaKind, SendResult } from "./types.js";
 const RETRY_STATUSES = new Set([429, 500, 502, 503, 504]);
 const DEFAULT_MAX_RETRIES = 3;
 const BASE_BACKOFF_MS = 500;
+const MAX_RETRY_AFTER_MS = 5 * 60 * 1000; // clamp upstream-suggested waits
+
+/**
+ * Parse an HTTP `Retry-After` header value into milliseconds.
+ * Supports both delta-seconds (`"30"`) and HTTP-date formats.
+ * Returns null if the header is missing or malformed.
+ */
+export function parseRetryAfter(
+  header: string | null | undefined,
+  nowMs: number = Date.now(),
+): number | null {
+  if (!header) return null;
+  const trimmed = header.trim();
+  if (!trimmed) return null;
+
+  if (/^\d+$/.test(trimmed)) {
+    const seconds = Number(trimmed);
+    if (!Number.isFinite(seconds)) return null;
+    return Math.max(0, Math.min(seconds * 1000, MAX_RETRY_AFTER_MS));
+  }
+
+  const dateMs = Date.parse(trimmed);
+  if (Number.isFinite(dateMs)) {
+    const delta = dateMs - nowMs;
+    return Math.max(0, Math.min(delta, MAX_RETRY_AFTER_MS));
+  }
+  return null;
+}
 
 export interface SendTextOptions {
   to: string;
@@ -94,7 +122,9 @@ export function createKapsoClient(
         }
       }
       if (RETRY_STATUSES.has(res.status) && attempt < maxRetries) {
-        await sleep(BASE_BACKOFF_MS * Math.pow(2, attempt));
+        const retryAfterMs = parseRetryAfter(res.headers.get("retry-after"));
+        const backoffMs = retryAfterMs ?? BASE_BACKOFF_MS * Math.pow(2, attempt);
+        await sleep(backoffMs);
         continue;
       }
       throw new Error(`kapso: HTTP ${res.status} — ${rawText.slice(0, 500)}`);

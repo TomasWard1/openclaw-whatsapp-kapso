@@ -17,7 +17,13 @@ export {
   KAPSO_API_PATH,
 } from "./src/config-schema.js";
 export type { KapsoConfig, KapsoAccount } from "./src/config-schema.js";
-export { createKapsoClient, toKapsoPhoneNumber } from "./src/send.js";
+export { createKapsoClient, toKapsoPhoneNumber, parseRetryAfter } from "./src/send.js";
+export { fetchKapsoMedia, downloadMediaBytes } from "./src/media.js";
+export type {
+  KapsoMediaMetadata,
+  KapsoMediaBytes,
+  FetchKapsoMediaInput,
+} from "./src/media.js";
 export {
   parseKapsoWebhook,
   verifyWebhookSignature,
