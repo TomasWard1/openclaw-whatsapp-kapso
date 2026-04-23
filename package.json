@@ -46,14 +46,18 @@
     "src/types.ts"
   ],
   "scripts": {
-    "test": "node --test test/",
-    "test:watch": "node --test --watch test/",
+    "test": "node --import tsx --test test/**/*.test.ts",
+    "test:watch": "node --import tsx --test --watch test/**/*.test.ts",
     "check:pack": "npm pack --dry-run"
   },
   "dependencies": {
     "zod": "^3.25.76"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.6.0"
+  },
   "openclaw": {
     "extensions": [
       "./index.ts"
