@@ -15,6 +15,38 @@ test("config.listAccountIds returns [] for garbage config", () => {
   assert.deepEqual(kapsoPlugin.config.listAccountIds({ foo: 1 }), []);
 });
 
+test("config.listAccountIds extracts the channel section from a full openclaw config", () => {
+  // OpenClaw hands the plugin the FULL openclaw.json, not the channel slice.
+  // The plugin must look up its own section under `channels.<id>`.
+  const fullCfg = {
+    gateway: { mode: "local" },
+    agents: { defaults: {} },
+    channels: {
+      "whatsapp-kapso": {
+        apiKey: "k",
+        phoneNumberId: "123",
+        webhookSecret: SECRET,
+      },
+    },
+  };
+  assert.deepEqual(kapsoPlugin.config.listAccountIds(fullCfg), ["default"]);
+});
+
+test("config.resolveAccount extracts the channel section from a full openclaw config", () => {
+  const fullCfg = {
+    channels: {
+      "whatsapp-kapso": {
+        apiKey: "k",
+        phoneNumberId: "123",
+        webhookSecret: SECRET,
+      },
+    },
+  };
+  const acct = kapsoPlugin.config.resolveAccount({ cfg: fullCfg });
+  assert.ok(acct);
+  assert.equal(acct!.accountId, "default");
+});
+
 test("config.resolveAccount returns the default when config is valid", () => {
   const acct = kapsoPlugin.config.resolveAccount({
     cfg: { apiKey: "k", phoneNumberId: "123", webhookSecret: SECRET },

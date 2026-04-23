@@ -93,6 +93,23 @@ function webhookPathForAccount(accountId: string): string {
   return `/webhooks/whatsapp-kapso/${normalizeAccountIdForPath(accountId)}`;
 }
 
+/**
+ * OpenClaw's channel-entry contract passes the FULL openclaw.json config to
+ * `config.listAccountIds` / `resolveAccount` / `defaultAccountId`, not the
+ * channel-scoped slice. We look up our section under `channels.<id>` (the
+ * standard location) and fall back to the passed object so tests that hand
+ * us a Kapso-shaped config directly still work.
+ */
+function extractChannelSection(cfg: unknown): unknown {
+  if (cfg && typeof cfg === "object") {
+    const channels = (cfg as { channels?: Record<string, unknown> }).channels;
+    if (channels && typeof channels === "object" && channels[CHANNEL_ID] !== undefined) {
+      return channels[CHANNEL_ID];
+    }
+  }
+  return cfg;
+}
+
 const CHANNEL_ID = "whatsapp-kapso";
 
 const meta = {
@@ -131,16 +148,19 @@ export const kapsoPlugin = {
   config: {
     sectionKey: CHANNEL_ID,
     listAccountIds: (cfg: unknown) => {
-      const parsed = KapsoConfigSchema.safeParse(cfg);
+      const section = extractChannelSection(cfg);
+      const parsed = KapsoConfigSchema.safeParse(section);
       return parsed.success ? listKapsoAccountIds(parsed.data) : [];
     },
     resolveAccount: (params: { cfg: unknown; accountId?: string }): ResolvedKapsoAccount | undefined => {
-      const parsed = KapsoConfigSchema.safeParse(params.cfg);
+      const section = extractChannelSection(params.cfg);
+      const parsed = KapsoConfigSchema.safeParse(section);
       if (!parsed.success) return undefined;
       return resolveKapsoAccount(parsed.data, params.accountId ?? DEFAULT_ACCOUNT_ID);
     },
     defaultAccountId: (cfg: unknown) => {
-      const parsed = KapsoConfigSchema.safeParse(cfg);
+      const section = extractChannelSection(cfg);
+      const parsed = KapsoConfigSchema.safeParse(section);
       return parsed.success ? resolveDefaultKapsoAccountId(parsed.data) : undefined;
     },
     isConfigured: (account: ResolvedKapsoAccount | undefined) =>
