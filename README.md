@@ -1,6 +1,8 @@
-# openclaw-whatsapp-kapso
+<p align="center">
+  <img src="./banner.png" alt="openclaw-whatsapp-kapso — give your agent a WhatsApp number" width="100%">
+</p>
 
-<!-- TODO: add logo here -->
+# openclaw-whatsapp-kapso
 
 **Native OpenClaw channel plugin for WhatsApp (Kapso).**
 
@@ -12,8 +14,6 @@
 [![OpenClaw](https://img.shields.io/badge/openclaw-plugin-orange.svg)](https://github.com/openclaw)
 
 Connect WhatsApp Business (via [Kapso](https://kapso.ai) — a managed wrapper around Meta's WhatsApp Cloud API) to your [OpenClaw](https://github.com/openclaw) agent. Drop-in: runs in-process, registers in OpenClaw's channel registry, unlocks the full ecosystem — cron reminders, announces, approvals, sessions, bindings — over WhatsApp.
-
-<!-- TODO: hero screenshot -->
 
 ## What this is
 
