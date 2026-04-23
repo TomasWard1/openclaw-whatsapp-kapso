@@ -10,6 +10,10 @@
 const { kapsoPlugin } = require("./src/channel.js");
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { setKapsoRuntime } = require("./src/runtime.js");
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const manifest = require("./openclaw.plugin.json") as {
+  configSchema: Record<string, unknown>;
+};
 
 interface PluginApi {
   runtime: Record<string, unknown>;
@@ -25,6 +29,8 @@ module.exports = {
   id: "whatsapp-kapso",
   name: "WhatsApp (Kapso)",
   description: "Native OpenClaw channel plugin for WhatsApp via Kapso",
-  configSchema: { type: "object", additionalProperties: false, properties: {} },
+  // Keep the register-entry in sync with the manifest so registry UIs that
+  // read either source see the real schema, not an empty no-op.
+  configSchema: manifest.configSchema,
   register,
 };
