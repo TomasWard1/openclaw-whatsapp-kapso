@@ -23,6 +23,9 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: npm
 
+      - name: Update npm for trusted publishing
+        run: npm install -g npm@11.6.2
+
       - name: Validate tag is reachable from main
         env:
           TAG_SHA: ${{ github.sha }}
