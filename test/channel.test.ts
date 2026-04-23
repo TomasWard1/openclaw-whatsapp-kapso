@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { kapsoPlugin } from "../src/channel.ts";
+import { kapsoPlugin, webhookPathForAccount } from "../src/channel.ts";
 
 const SECRET = "this-is-thirty-two-chars-fine!!!";
 
@@ -63,51 +63,34 @@ test("config.isConfigured is true only with all three fields", () => {
   assert.equal(kapsoPlugin.config.isConfigured(undefined), false);
 });
 
-test("gateway.startAccount returns a webhookHandler and done promise", async () => {
+test("gateway.startAccount returns a pending task that resolves on abort", async () => {
   const acct = kapsoPlugin.config.resolveAccount({
     cfg: { apiKey: "k", phoneNumberId: "123", webhookSecret: SECRET },
   })!;
   const controller = new AbortController();
-  const gw = await kapsoPlugin.gateway.startAccount({
+  const task = kapsoPlugin.gateway.startAccount({
     account: acct,
     abortSignal: controller.signal,
   });
-  assert.equal(typeof gw.webhookHandler, "function");
-  assert.ok(gw.done instanceof Promise);
+  assert.ok(task instanceof Promise);
+  // Race against a 200ms timeout — task must NOT resolve before abort.
+  let resolvedEarly = false;
+  await Promise.race([
+    task.then(() => { resolvedEarly = true; }),
+    new Promise((r) => setTimeout(r, 200)),
+  ]);
+  assert.equal(resolvedEarly, false, "task should stay pending until abort");
   controller.abort();
-  await gw.done;
+  await task;
 });
 
-test("webhookHandler returns 401 on missing signature", async () => {
-  const acct = kapsoPlugin.config.resolveAccount({
-    cfg: { apiKey: "k", phoneNumberId: "123", webhookSecret: SECRET },
-  })!;
-  const gw = await kapsoPlugin.gateway.startAccount({ account: acct });
-  const res = await gw.webhookHandler("{}", {});
-  assert.equal(res.status, 401);
+test("webhookPathForAccount builds the per-account path", () => {
+  assert.equal(webhookPathForAccount("default"), "/webhooks/whatsapp-kapso/default");
 });
 
-test("startAccount exposes the per-account webhook path", async () => {
-  const acct = kapsoPlugin.config.resolveAccount({
-    cfg: { apiKey: "k", phoneNumberId: "123", webhookSecret: SECRET },
-  })!;
-  const gw = await kapsoPlugin.gateway.startAccount({ account: acct });
-  assert.equal(gw.webhookPath, "/webhooks/whatsapp-kapso/default");
-});
-
-test("webhook path sanitizes unsafe characters in account id", async () => {
-  const acct = kapsoPlugin.config.resolveAccount({
-    cfg: {
-      accounts: {
-        "MyAcct/../hack?x=1": {
-          apiKey: "k",
-          phoneNumberId: "123",
-          webhookSecret: SECRET,
-        },
-      },
-    },
-    accountId: "MyAcct/../hack?x=1",
-  })!;
-  const gw = await kapsoPlugin.gateway.startAccount({ account: acct });
-  assert.equal(gw.webhookPath, "/webhooks/whatsapp-kapso/myacct____hack_x_1");
+test("webhookPathForAccount sanitizes unsafe characters", () => {
+  assert.equal(
+    webhookPathForAccount("MyAcct/../hack?x=1"),
+    "/webhooks/whatsapp-kapso/myacct____hack_x_1",
+  );
 });
