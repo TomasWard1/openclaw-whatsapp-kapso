@@ -1,0 +1,82 @@
+{
+  "name": "openclaw-whatsapp-kapso",
+  "version": "2026.4.23",
+  "description": "Native OpenClaw channel plugin for WhatsApp via Kapso (WhatsApp Business Cloud API)",
+  "author": {
+    "name": "Tomas Ward",
+    "url": "https://github.com/TomasWard1"
+  },
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "openclaw",
+    "openclaw-plugin",
+    "openclaw-channel",
+    "whatsapp",
+    "kapso",
+    "whatsapp-cloud-api",
+    "bot"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TomasWard1/openclaw-whatsapp-kapso.git"
+  },
+  "bugs": {
+    "url": "https://github.com/TomasWard1/openclaw-whatsapp-kapso/issues"
+  },
+  "homepage": "https://github.com/TomasWard1/openclaw-whatsapp-kapso#readme",
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "api.ts",
+    "index.ts",
+    "setup-entry.ts",
+    "openclaw.plugin.json",
+    "src/accounts.ts",
+    "src/channel.ts",
+    "src/config-schema.ts",
+    "src/inbound.ts",
+    "src/runtime.ts",
+    "src/send.ts",
+    "src/setup-core.ts",
+    "src/types.ts"
+  ],
+  "scripts": {
+    "test": "node --import tsx --test test/**/*.test.ts",
+    "test:watch": "node --import tsx --test --watch test/**/*.test.ts",
+    "check:pack": "npm pack --dry-run"
+  },
+  "dependencies": {
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.6.0"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "setupEntry": "./setup-entry.ts",
+    "channel": {
+      "id": "whatsapp-kapso",
+      "label": "WhatsApp (Kapso)",
+      "selectionLabel": "WhatsApp via Kapso",
+      "docsPath": "/channels/whatsapp-kapso",
+      "docsLabel": "whatsapp-kapso",
+      "blurb": "WhatsApp Business Cloud API via Kapso — a managed wrapper with webhooks, media, and sandbox support.",
+      "order": 70,
+      "quickstartAllowFrom": true
+    },
+    "install": {
+      "npmSpec": "openclaw-whatsapp-kapso",
+      "localPath": "extensions/whatsapp-kapso",
+      "defaultChoice": "npm"
+    }
+  }
+}

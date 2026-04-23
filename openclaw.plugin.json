@@ -1,0 +1,9 @@
+{
+  "id": "whatsapp-kapso",
+  "channels": ["whatsapp-kapso"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
