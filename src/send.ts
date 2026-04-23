@@ -66,7 +66,10 @@ export interface KapsoClientDeps {
  * on the send endpoint. Accepts `+` prefix and spaces as tolerated input.
  */
 export function toKapsoPhoneNumber(raw: string): string {
-  const trimmed = raw.trim();
+  // OpenClaw's outbound delivery passes `to` as `<channel-id>:<phone>` (e.g.
+  // `whatsapp-kapso:+5491160156399`); strip that prefix before validating.
+  const withoutChannelPrefix = raw.replace(/^whatsapp-kapso:/i, "");
+  const trimmed = withoutChannelPrefix.trim();
   const digits = trimmed.replace(/^\+/, "").replace(/\s+/g, "");
   if (!/^\d+$/.test(digits)) {
     throw new Error(`invalid phone number: ${raw}`);
