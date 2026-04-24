@@ -9,7 +9,7 @@
  * glue needed to hand a text message to the agent and deliver its reply.
  */
 
-import { createKapsoClient } from "./send.js";
+import { createKapsoClient, type KapsoClient } from "./send.js";
 import type { KapsoAccountConfig, NormalizedInboundMessage } from "./types.js";
 
 const CHANNEL_ID = "whatsapp-kapso";
@@ -49,10 +49,16 @@ interface DispatchParams {
     error?: (m: string) => void;
   };
   message: NormalizedInboundMessage;
+  /**
+   * Optional factory to build the Kapso HTTP client — injected by tests. In
+   * production we always build a fresh client from `account.config`.
+   */
+  kapsoClientFactory?: (config: KapsoAccountConfig) => KapsoClient;
 }
 
 export async function dispatchInboundMessage(params: DispatchParams): Promise<void> {
   const { cfg, account, channelRuntime, log, message } = params;
+  const clientFactory = params.kapsoClientFactory ?? createKapsoClient;
 
   // Only text is wired for now — media needs a fetch step before we can
   // hand it to the agent. Log and skip.
@@ -61,6 +67,20 @@ export async function dispatchInboundMessage(params: DispatchParams): Promise<vo
       `[${account.accountId}] inbound skipped (type=${message.type}, hasText=${Boolean(message.text)})`,
     );
     return;
+  }
+
+  const kapso = clientFactory(account.config);
+
+  // Fire the mark-as-read + typing indicator as soon as we know we'll
+  // actually dispatch this message to the agent. This gives the end user
+  // immediate feedback (two blue checks + "typing…") while the agent
+  // thinks. The indicator auto-clears after 25s or when our reply is
+  // sent, whichever comes first. It's a nice-to-have: any failure is
+  // logged and swallowed — we must not block the inbound pipeline.
+  try {
+    await kapso.markRead({ messageId: message.messageId, typing: true });
+  } catch (err) {
+    log?.warn?.(`[${account.accountId}] mark-as-read+typing failed: ${String(err)}`);
   }
 
   // Lazy-load the SDK helpers so old hosts that don't ship them still let
@@ -141,8 +161,6 @@ export async function dispatchInboundMessage(params: DispatchParams): Promise<vo
     channel: CHANNEL_ID,
     accountId: account.accountId,
   });
-
-  const kapso = createKapsoClient(account.config);
 
   await channelRuntime.reply.dispatchReplyWithBufferedBlockDispatcher({
     ctx: ctxPayload,
