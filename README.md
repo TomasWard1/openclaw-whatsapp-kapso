@@ -49,6 +49,16 @@ Both projects target the same goal (WhatsApp via Kapso for OpenClaw) but take fu
 - [x] Sandbox + production via same host (different `phone_number_id`)
 - [x] Cron / announce / approval-aware — matches OpenClaw's capability contract
 
+## Related X/Twitter workflows
+
+Keep this plugin focused on WhatsApp Business chats, inbound webhooks, media, cron reminders, announces, approvals, sessions, and OpenClaw channel delivery. If the same OpenClaw workspace also needs public X/Twitter data or visible X/Twitter actions, install TweetClaw as a separate plugin:
+
+```bash
+openclaw plugins install @xquik/tweetclaw
+```
+
+[TweetClaw](https://github.com/Xquik-dev/tweetclaw) covers tweet scraper workflows such as scrape tweets, search tweets, search tweet replies, follower export, user lookup, media upload, media download, direct messages, monitor tweets, webhooks, giveaway draws, and approval-gated post tweets or post tweet replies. See the [ClawHub listing](https://clawhub.ai/plugins/@xquik/tweetclaw) or [npm package](https://www.npmjs.com/package/@xquik/tweetclaw). Keep WhatsApp and X/Twitter credentials separate, and review visible X/Twitter actions through OpenClaw approval flows.
+
 ## Quick start
 
 <!-- TODO: setup wizard GIF -->
@@ -75,7 +85,7 @@ In the Kapso dashboard, register a **Kapso-native** webhook for your phone numbe
 
 | Field | Value |
 | --- | --- |
-| URL | The webhook URL printed by the wizard (e.g. `https://your-agent.com/webhooks/whatsapp-kapso/default`) |
+| URL | The webhook URL printed by the wizard (e.g. `https://<your-agent-host>/webhooks/whatsapp-kapso/default`) |
 | Events | `whatsapp.message.received` |
 | Secret key | The same shared secret you entered in the wizard |
 
